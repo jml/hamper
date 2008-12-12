@@ -1,6 +1,8 @@
 -- AMP implementation.
 -- See twisted.protocols.amp.
 
+import Data.Bits
+import Data.Word
 import System.IO
 import qualified Data.ByteString.Lazy as B
 import qualified Data.Binary as Binary
@@ -14,8 +16,8 @@ mapMap keyFunc valueFunc map =
 double f (x, y) = (f(x), f(y))
 
 -- Convert between text and UTF8-encoded bytes.
-textToBytes = B.pack . UTF8.encode
-bytesToText = UTF8.decode . B.unpack
+textToBytes = UTF8.encode
+bytesToText = UTF8.decode
 
 _ASK = textToBytes "_ask"
 _ANSWER = textToBytes "_answer"
@@ -32,22 +34,25 @@ _UNHANDLED_ERROR_CODE = textToBytes "UNHANDLED"
 -- a list of length-prefixed values, alternating between key and value,
 -- terminated by an empty key (i.e. two null bytes.)
 
-newtype AmpBox = AmpBox (Map.Map B.ByteString B.ByteString)
+newtype AmpBox = AmpBox (Map.Map [Word8] [Word8])
 unAmpBox (AmpBox box) = box
 
 max_key_length = 0xff
 max_value_length = 0xffff
 
-serializeBoxBytes bytes = (Binary.encode . B.length) bytes `B.append` bytes
+packLength n = (B.unpack . Binary.encode) (fromIntegral n :: Word16)
+
+serializeBoxBytes bytes = (packLength (length bytes)) ++ bytes
 serializeBoxKey = serializeBoxBytes
 serializeBoxValue = serializeBoxBytes
 serializeBoxPair (key, value) =
-    (serializeBoxKey key) `B.append` (serializeBoxValue value)
-boxTerminator = Binary.encode (0 :: Integer)
+    (serializeBoxKey key) ++ (serializeBoxValue value)
 
-serializeBox :: AmpBox -> B.ByteString
+boxTerminator = serializeBoxKey ""
+
+serializeBox :: AmpBox -> [Word8]
 serializeBox (AmpBox box) =
-    B.concat (map serializeBoxPair (Map.toList box)) `B.append` boxTerminator
+    concat (map serializeBoxPair (Map.toList box)) ++ boxTerminator
 
 
 -- Because it's a pain to play with AmpBoxes in the interpreter, these helpers
@@ -59,6 +64,8 @@ unbox (AmpBox x) = map (double bytesToText) (Map.toList x)
 -- Commands
 
 makeBoxCommand command box = AmpBox (Map.insert _COMMAND command (unAmpBox box))
+
+add a b = makeBoxCommand (textToBytes "Sum") (box [("a", (show a)), ("b", (show b))])
 
 -- Need mapping from String (parameter name) to ParameterType
 -- Need mapping from String to Parameter*
