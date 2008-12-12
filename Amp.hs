@@ -1,3 +1,9 @@
+module Amp
+    (AmpBox,
+     box,
+     unbox,
+     boxFromFile) where
+
 -- AMP implementation.
 -- See twisted.protocols.amp.
 
