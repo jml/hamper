@@ -1,11 +1,12 @@
 -- AMP implementation.
 -- See twisted.protocols.amp.
 
+import Control.Monad
+import Data.Binary
 import Data.Bits
 import Data.Word
 import System.IO
 import qualified Data.ByteString.Lazy as B
-import qualified Data.Binary as Binary
 import qualified Data.Map as Map
 import qualified Codec.Binary.UTF8.String as UTF8
 
@@ -41,7 +42,7 @@ unAmpBox (AmpBox box) = box
 max_key_length = 0xff
 max_value_length = 0xffff
 
-packLength n = (B.unpack . Binary.encode) (fromIntegral n :: Word16)
+packLength n = (B.unpack . encode) (fromIntegral n :: Word16)
 
 serializeBoxBytes bytes = (packLength (length bytes)) ++ bytes
 serializeBoxKey = serializeBoxBytes
@@ -71,3 +72,28 @@ add a b = makeBoxCommand (textToBytes "Sum") (box [("a", (show a)), ("b", (show 
 -- Need mapping from String to Parameter*
 -- Take both of these, and convert to a box
 -- Take the box and serialize it (maybe with additional AMP pragma)
+
+
+data AmpByteString = MkAmpByteString [Word8]
+instance Binary AmpByteString where
+    put (MkAmpByteString bytes) = do put (fromIntegral (length bytes) :: Word16)
+                                     mapM_ put bytes
+    get = do numBytes <- get :: Get Word16
+             do payload <- replicateM (fromIntegral numBytes) getWord8
+                return (MkAmpByteString payload)
+
+unAmpByteString (MkAmpByteString string) = string
+
+data AmpString = MkAmpString String
+unAmpString (MkAmpString string) = string
+
+
+ampTextToBytes = MkAmpByteString . textToBytes . unAmpString
+ampBytesToText = MkAmpString . bytesToText . unAmpByteString
+
+instance Binary AmpString where
+    put ampString = put (ampTextToBytes ampString)
+    get = do payload <- get :: Get AmpByteString
+             return (ampBytesToText payload)
+
+encodeAmpByteString = encode . MkAmpByteString . textToBytes
