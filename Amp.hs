@@ -74,25 +74,25 @@ add a b = makeBoxCommand (textToBytes "Sum") (box [("a", (show a)), ("b", (show 
 -- Take the box and serialize it (maybe with additional AMP pragma)
 
 
-data AmpByteString = MkAmpByteString [Word8]
+data AmpByteString = AmpByteString [Word8]
 instance Binary AmpByteString where
-    put (MkAmpByteString bytes) = do put (fromIntegral (length bytes) :: Word16)
-                                     mapM_ put bytes
+    put (AmpByteString bytes) = do put (fromIntegral (length bytes) :: Word16)
+                                   mapM_ put bytes
     get = do numBytes <- get :: Get Word16
              do payload <- replicateM (fromIntegral numBytes) getWord8
-                return (MkAmpByteString payload)
+                return (AmpByteString payload)
 
-unAmpByteString (MkAmpByteString string) = string
+unAmpByteString (AmpByteString string) = string
 
-data AmpString = MkAmpString String
-unAmpString (MkAmpString string) = string
+data AmpString = AmpString String
+unAmpString (AmpString string) = string
 
 
-ampTextToBytes = MkAmpByteString . textToBytes . unAmpString
-ampBytesToText = MkAmpString . bytesToText . unAmpByteString
+ampTextToBytes = AmpByteString . textToBytes . unAmpString
+ampBytesToText = AmpString . bytesToText . unAmpByteString
 
 instance Binary AmpString where
     put = put . ampTextToBytes
     get = fmap ampBytesToText get
 
-encodeAmpByteString = encode . MkAmpByteString . textToBytes
+encodeAmpByteString = encode . AmpByteString . textToBytes
