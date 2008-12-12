@@ -92,8 +92,7 @@ ampTextToBytes = MkAmpByteString . textToBytes . unAmpString
 ampBytesToText = MkAmpString . bytesToText . unAmpByteString
 
 instance Binary AmpString where
-    put ampString = put (ampTextToBytes ampString)
-    get = do payload <- get :: Get AmpByteString
-             return (ampBytesToText payload)
+    put = put . ampTextToBytes
+    get = fmap ampBytesToText get
 
 encodeAmpByteString = encode . MkAmpByteString . textToBytes
