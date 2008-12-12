@@ -16,6 +16,7 @@ mapMap keyFunc valueFunc map =
 double f (x, y) = (f(x), f(y))
 
 -- Convert between text and UTF8-encoded bytes.
+
 textToBytes = UTF8.encode
 bytesToText = UTF8.decode
 
@@ -48,7 +49,7 @@ serializeBoxValue = serializeBoxBytes
 serializeBoxPair (key, value) =
     (serializeBoxKey key) ++ (serializeBoxValue value)
 
-boxTerminator = serializeBoxKey ""
+boxTerminator = serializeBoxKey []
 
 serializeBox :: AmpBox -> [Word8]
 serializeBox (AmpBox box) =
@@ -62,7 +63,6 @@ unbox (AmpBox x) = map (double bytesToText) (Map.toList x)
 
 
 -- Commands
-
 makeBoxCommand command box = AmpBox (Map.insert _COMMAND command (unAmpBox box))
 
 add a b = makeBoxCommand (textToBytes "Sum") (box [("a", (show a)), ("b", (show b))])
