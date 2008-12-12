@@ -11,10 +11,20 @@ import qualified Data.Map as Map
 import qualified Codec.Binary.UTF8.String as UTF8
 
 
-mapMap keyFunc valueFunc map =
-    Map.fromList [ (keyFunc key, valueFunc value) | (key, value) <- Map.toList map ]
-
 double f (x, y) = (f(x), f(y))
+
+toFlatList ((x, y) : xs) = x : y : toFlatList xs
+toFlatList [] = []
+
+fromFlatList :: (Ord a) => [a] -> [(a, a)]
+fromFlatList (x : y : xs) = (x, y) : fromFlatList xs
+fromFlatList [] = []
+
+mapToFlat = toFlatList . Map.toList
+
+flatToMap :: (Ord a) => [a] -> (Map.Map a a)
+flatToMap = Map.fromList . fromFlatList
+
 
 -- Convert between text and UTF8-encoded bytes.
 
@@ -64,9 +74,12 @@ unbox (AmpBox x) = map (double bytesToText) (Map.toList x)
 
 
 -- Commands
-makeBoxCommand command box = AmpBox (Map.insert _COMMAND command (unAmpBox box))
+_addToBox key value box = AmpBox (Map.insert key value (unAmpBox box))
+makeBoxCommand command False box = _addToBox _COMMAND command box
+makeBoxCommand command True box =
+    _addToBox _ASK (textToBytes "unique!") (makeBoxCommand command False box)
 
-add a b = makeBoxCommand (textToBytes "Sum") (box [("a", (show a)), ("b", (show b))])
+add a b = makeBoxCommand (textToBytes "Sum") True (box [("a", (show a)), ("b", (show b))])
 
 -- Need mapping from String (parameter name) to ParameterType
 -- Need mapping from String to Parameter*
@@ -96,3 +109,26 @@ instance Binary AmpString where
     get = fmap ampBytesToText get
 
 encodeAmpByteString = encode . AmpByteString . textToBytes
+
+doUntil predicate action =
+    do result <- action
+       if predicate result
+          then return [result]
+          else do results <- (doUntil predicate action)
+                  return (result : results)
+
+doWhile predicate action = doUntil (not. predicate) action
+
+
+instance Binary AmpBox where
+    put (AmpBox box) = do mapM_ (put . AmpByteString) (mapToFlat box)
+                          putWord8 0
+                          putWord8 0
+    get = do ampStrings <- doUntil null (get >>= (return .unAmpByteString))
+             return ((AmpBox . flatToMap) (init ampStrings))
+
+
+boxFromFile filepath =
+    do content <- B.readFile filepath
+       return ((unbox . decode) content)
+
