@@ -8,3 +8,14 @@ rollDice :: IO Int
 rollDice = getStdRandom $ randomR  $ (1, 6)
 
 _FOO = 2
+
+
+readline feeder = do c <- feeder
+                     if c == '\n'
+                        then return []
+                        else do cs <- (readline feeder)
+                                return (c : cs)
+
+
+data Foo = MkFoo String
+newtype Bar = MkBar String
