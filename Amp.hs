@@ -43,8 +43,7 @@ _unAmpBox (AmpBox box) = box
 
 instance Binary AmpBox where
     put (AmpBox box) = do mapM_ (put . AmpByteString) (mapToFlat box)
-                          putWord8 0
-                          putWord8 0
+                          put (0 :: Word16)
     get = do ampStrings <- doUntil null (get >>= (return . _unAmpByteString))
              return ((AmpBox . flatToMap) (init ampStrings))
 
