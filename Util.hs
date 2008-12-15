@@ -1,5 +1,6 @@
-module Util (double, doUntil, mapToFlat, flatToMap) where
+module Util (double, doUntil, mapToFlat, flatToMap, showMap, mapAll, mapItems) where
 
+import Data.List
 import qualified Data.Map as Map
 
 toFlatList :: [(a, a)] -> [a]
@@ -15,6 +16,19 @@ mapToFlat = toFlatList . Map.toList
 flatToMap :: (Ord a) => [a] -> (Map.Map a a)
 flatToMap = Map.fromList . fromFlatList
 
+transformMap :: (Ord a, Ord c) => ([(a, b)] -> [(c, d)]) -> Map.Map a b -> Map.Map c d
+transformMap f = Map.fromList . f . Map.toList
+
+mapItems :: (Ord a) => ((a, b) -> x) -> Map.Map a b -> [x]
+mapItems f = (map f) . Map.toList
+
+mapAll :: (Ord x, Ord y) => (x -> y) -> Map.Map x x -> Map.Map y y
+mapAll = transformMap . map . double
+
+
+showMap datamap =
+    let showPair (k, v) = show k ++ " => " ++ show v in
+    intercalate ", " (mapItems showPair datamap)
 
 doUntil predicate action =
     do result <- action
@@ -26,4 +40,4 @@ doUntil predicate action =
 doWhile predicate action = doUntil (not. predicate) action
 
 
-double f (x, y) = (f(x), f(y))
+double f (x, y) = (f x, f y)

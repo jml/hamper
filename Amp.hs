@@ -60,6 +60,12 @@ instance Binary AmpBox where
              return ((AmpBox . flatToMap) (init ampStrings))
 
 
+
+instance Show AmpBox where
+    show box =
+        concat ["AmpBox(", (showMap (mapAll bytesToText (_unAmpBox box))), ")"]
+
+
 _addToBox key value box = AmpBox (Map.insert key value (_unAmpBox box))
 makeBoxCommand command False box = _addToBox _COMMAND command box
 makeBoxCommand command True box =
@@ -69,7 +75,7 @@ makeBoxCommand command True box =
 -- Because it's a pain to play with AmpBoxes in the interpreter, these helpers
 -- convert from [(String, String)] -> AmpBox and back.
 box x = (AmpBox . Map.fromList) (map (double textToBytes) x)
-unbox (AmpBox x) = map (double bytesToText) (Map.toList x)
+unbox = mapItems (double bytesToText) . _unAmpBox
 
 
 connectTCP :: HostName -> String -> IO Handle
