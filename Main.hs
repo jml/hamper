@@ -16,4 +16,11 @@ boxFromFile filepath =
 dumpBox = show . B.unpack . encode
 
 
-main = putStrLn (dumpBox (add 23 90))
+main = do
+  let box = add 23 90
+  handle <- connectTCP "localhost" "1234"
+  sendAMPMessage handle box
+  putStrLn (dumpBox box)
+  replyBox <- getAMPMessage handle
+  putStrLn (dumpBox replyBox)
+  disconnect handle

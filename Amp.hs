@@ -1,9 +1,21 @@
-module Amp (AmpBox, box, makeBoxCommand, textToBytes, unbox) where
+module Amp
+    (AmpBox,
+     box,
+     connectTCP,
+     disconnect,
+     getAMPMessage,
+     makeBoxCommand,
+     sendAMPMessage,
+     textToBytes,
+     unbox) where
 
 import Control.Monad
 import Data.Binary
 import qualified Data.Map as Map
+import qualified Data.ByteString.Lazy as B
 import qualified Codec.Binary.UTF8.String as UTF8
+import Network.Socket
+import System.IO
 import Util
 
 
@@ -58,3 +70,44 @@ makeBoxCommand command True box =
 -- convert from [(String, String)] -> AmpBox and back.
 box x = (AmpBox . Map.fromList) (map (double textToBytes) x)
 unbox (AmpBox x) = map (double bytesToText) (Map.toList x)
+
+
+connectTCP :: HostName -> String -> IO Handle
+connectTCP hostname port =
+    do addrinfos <- getAddrInfo Nothing (Just hostname) (Just port)
+       let serveraddr = head addrinfos
+
+       -- Establish a socket for communication
+       sock <- socket (addrFamily serveraddr) Stream defaultProtocol
+
+       -- Mark the socket for keep-alive handling since it may be idle
+       -- for long periods of time
+       setSocketOption sock KeepAlive 1
+
+       -- Connect to server
+       connect sock (addrAddress serveraddr)
+
+       -- Make a Handle out of it for convenience
+       h <- socketToHandle sock ReadWriteMode
+
+       -- We're going to set buffering to BlockBuffering and then
+       -- explicitly call hFlush after each message, below, so that
+       -- messages get logged immediately
+       hSetBuffering h (BlockBuffering Nothing)
+
+       return h
+
+
+sendAMPMessage :: Handle -> AmpBox -> IO ()
+sendAMPMessage handle box = do
+  B.hPut handle (encode box)
+  hFlush handle
+
+getAMPMessage :: Handle -> IO AmpBox
+getAMPMessage handle = do
+  contents <- B.hGetContents handle
+  return $ decode contents
+
+
+disconnect :: Handle -> IO ()
+disconnect = hClose
