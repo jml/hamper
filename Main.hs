@@ -1,11 +1,14 @@
 import Amp
 import Data.Binary
+import Data.Map
 import qualified Data.ByteString.Lazy as B
 
 
+_addBox a b = (box [("a", show (a :: Integer)), ("b", show (b :: Integer))])
 
-add a b = makeBoxCommand (textToBytes "Sum") True
-          (box [("a", (show a)), ("b", (show b))])
+add h a b = do
+    reply <- ampFunction h "Sum" (_addBox a b)
+    return (read ((fromList (unbox reply)) ! "total") :: Integer)
 
 
 boxFromFile filepath =
@@ -14,10 +17,7 @@ boxFromFile filepath =
 
 
 main = do
-  let box = add 23 90
   handle <- connectTCP "localhost" "1234"
-  sendAMPMessage handle box
-  putStrLn (show box)
-  replyBox <- getAMPMessage handle
-  putStrLn (show replyBox)
+  reply <- add handle 15 98
+  putStrLn (show reply)
   disconnect handle

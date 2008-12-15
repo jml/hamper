@@ -1,6 +1,8 @@
 module Amp
     (AmpBox,
+     ampFunction,
      box,
+     callAMP,
      connectTCP,
      disconnect,
      getAMPMessage,
@@ -113,6 +115,19 @@ getAMPMessage :: Handle -> IO AmpBox
 getAMPMessage handle = do
   contents <- B.hGetContents handle
   return $ decode contents
+
+
+callAMP :: Handle -> AmpBox -> IO AmpBox
+callAMP handle box = do
+  sendAMPMessage handle box
+  getAMPMessage handle
+
+
+ampFunction :: Handle -> String -> AmpBox -> IO AmpBox
+ampFunction handle command arguments =
+    let box = makeBoxCommand (u command) True arguments in
+    do reply <- callAMP handle box
+       (return . AmpBox . (Map.delete _ANSWER) . _unAmpBox) reply
 
 
 disconnect :: Handle -> IO ()
