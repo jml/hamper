@@ -16,4 +16,4 @@ boxFromFile filepath =
 dumpBox = show . B.unpack . encode
 
 
-main = putStr (dumpBox (add 23 90))
+main = putStrLn (dumpBox (add 23 90))
