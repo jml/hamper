@@ -1,5 +1,8 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Amp
     (AmpBox,
+     Bytes,
      ampFunction,
      box,
      callAMP,
@@ -26,6 +29,11 @@ textToBytes = UTF8.encode
 u = textToBytes
 bytesToText = UTF8.decode
 
+type Bytes = [Word8]
+
+type AmpKey = Bytes
+type AmpValue = Bytes
+
 
 -- AMP Constants
 _ASK = u "_ask"
@@ -39,7 +47,7 @@ _UNHANDLED_ERROR_CODE = u "UNHANDLED"
 
 
 -- The basic unit of AMP is a length-prefix byte string.
-data AmpByteString = AmpByteString [Word8]
+data AmpByteString = AmpByteString Bytes
 _unAmpByteString (AmpByteString string) = string
 
 instance Binary AmpByteString where
@@ -51,7 +59,7 @@ instance Binary AmpByteString where
                 return (AmpByteString payload)
 
 
-newtype AmpBox = AmpBox (Map.Map [Word8] [Word8])
+newtype AmpBox = AmpBox (Map.Map AmpKey AmpValue)
 _unAmpBox (AmpBox box) = box
 
 
@@ -132,3 +140,31 @@ ampFunction handle command arguments =
 
 disconnect :: Handle -> IO ()
 disconnect = hClose
+
+
+class Argument a where
+    toByteString :: a -> Bytes
+    fromByteString :: Bytes -> a
+
+
+instance Argument Integer where
+    toByteString = (textToBytes . show)
+    fromByteString bytes = ((read . bytesToText) bytes) :: Integer
+
+
+-- Type Synonym
+instance Argument Bytes where
+    toByteString = id
+    fromByteString = id
+
+
+type AmpType = String
+data CommandDefinition = CommandDefinition {
+      commandName :: Bytes,
+      commandArguments :: Map.Map AmpKey AmpType,
+      commandNeedsReply :: Bool}
+
+
+buildAmpBox :: CommandDefinition -> (Map.Map AmpKey AmpValue) -> AmpBox
+buildAmpBox command arguments =
+    AmpBox $ Map.map toByteString (Map.intersection arguments (commandArguments command))
