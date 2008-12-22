@@ -19,3 +19,8 @@ readline feeder = do c <- feeder
 
 data Foo = MkFoo String
 newtype Bar = MkBar String
+
+
+data X = X { name :: String }
+
+
