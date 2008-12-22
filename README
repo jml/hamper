@@ -1,1 +1,126 @@
 Muck around with Haskell.
+
+
+= AMP =
+
+== Terms ==
+
+  bytes :: a sequence of bytes
+
+== Boxes ==
+
+Boxes!
+
+  key :: bytes
+  value :: bytes
+
+
+
+    1. What's the rationale for the maximum key length being different to
+    the maximum value length?
+
+
+Keys should be keys, individual words easily described in a protocol
+specification document. 255 bytes is enough even for a wordy chinese
+identifier in UTF8.
+
+Also, the redundancy of the implicitly required NUL between messages gives us
+a nice hook to determine if the protocol has gone totally pear- shaped, like
+the "," between netstrings.
+
+
+
+
+    2. How does the Python keywords thing fit with the actual protocol,
+    rather than the Python implementation?
+
+
+The Python keywords thing is purely a Python consideration. It should have no
+effect on the protocol.
+
+
+        The Python keywords thing is purely a Python consideration.  It should have
+        no effect on the protocol.
+
+    Hmm. Maybe a better question is, "are there any restrictions on what
+    constitutes a valid key, other than length"?
+
+
+Nope. Maybe there should be, though, I've been thinking about adding the
+restriction of "no-NUL utf-8". Right now it's effectively ASCII for keys,
+
+    Another question, does AMP have anything to say about character
+    encoding? For my Haskell implementation I've been UTF-8 encoding
+    strings before sending them over the wire, which seems like a good
+    default sanity.
+
+
+As in the Python implementation of the "Unicode" argument type, UTF-8 is where
+it's at. "String" is a crummy argument name, it really should have been
+"Bytes"; but it's very clearly a bytestring, not text.
+
+Thanks for doing a Haskell implementation ;).
+
+
+== Commands ==
+
+A *command definition* is::
+
+  command name :: bytes
+  arguments
+  response
+  errors
+
+  *arguments* is a mapping from 'name' to (encoder, decoder) pairs, where
+      name :: bytes (a box 'key')
+      encoder :: A -> bytes
+      decoder :: bytes -> A
+
+Such that x = decoder(encoder(x)) for all x in A
+
+A *command request* is serialized from a command definition, given a mapping
+from parameter names (bytes) to values (arbitrary).
+
+  _command => <command name>
+  <name> => encoder (a)
+
+for all *arguments*.
+
+If the server MUST send a reply to the request, the command request also
+includes::
+
+  ASK => <unique_tag>
+
+where <unique_tag> is unique to that connection.
+
+
+  ANSWER
+
+errors???
+
+
+== Conventions ==
+
+=== Names ===
+
+Command names should be purely alpha-numeric, starting with a capital letter.
+
+<< recommended range for argument / response names >>
+<< recommended range for error names >>
+
+
+=== Types ===
+
+Text strings sent as UTF-8 encoded bytes.
+
+Integers are sent as stringified versions of themselves.
+
+Lists are sent as a list of AMP boxes, each one following the same
+argument-set-definition.
+
+Boolean values are sent as "True", "False" (byte strings)
+
+
+== SSL / Protocol switching ==
+
+???
