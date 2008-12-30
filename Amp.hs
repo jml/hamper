@@ -1,14 +1,16 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Amp
-    (AmpBox,
-     Bytes,
-     ampFunction,
-     box,
-     connectTCP,
-     disconnect,
-     textToBytes,
-     unbox) where
+    (
+      AmpBox
+    , Bytes
+    , ampFunction
+    , box
+    , connectTCP
+    , disconnect
+    , textToBytes
+    , unbox
+    ) where
 
 import Control.Monad
 import Data.Binary
@@ -157,3 +159,5 @@ instance Argument Bytes where
 instance Argument String where
     toByteString = textToBytes
     fromByteString = bytesToText
+
+
