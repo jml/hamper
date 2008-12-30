@@ -158,13 +158,6 @@ instance Argument Bytes where
     fromByteString = id
 
 
-type AmpType = String
-data CommandDefinition = CommandDefinition {
-      commandName :: Bytes,
-      commandArguments :: Map.Map AmpKey AmpType,
-      commandNeedsReply :: Bool}
+buildAmpBox command needsReply arguments =
+    makeBoxCommand command needsReply (AmpBox (Map.map toByteString arguments))
 
-
-buildAmpBox :: CommandDefinition -> (Map.Map AmpKey AmpValue) -> AmpBox
-buildAmpBox command arguments =
-    AmpBox $ Map.map toByteString (Map.intersection arguments (commandArguments command))
