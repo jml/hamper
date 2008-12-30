@@ -24,8 +24,9 @@ import Util
 
 type Bytes = [Word8]
 
-type AmpKey = Bytes
-type AmpValue = Bytes
+newtype AmpKey = AmpKey Bytes deriving (Ord, Eq)
+
+newtype AmpValue = AmpValue Bytes
 
 newtype AmpBox = AmpBox (Map.Map AmpKey AmpValue)
 _unAmpBox (AmpBox box) = box
@@ -37,15 +38,17 @@ u = textToBytes
 bytesToText = UTF8.decode
 
 
--- The basic unit of AMP is a length-prefix byte string.
-data AmpByteString = AmpByteString Bytes
-_unAmpByteString (AmpByteString string) = string
+ampKey = (AmpKey . textToBytes)
+unAmpKey (AmpKey x) =  bytesToText x
+
+ampValue = (AmpValue . textToBytes)
+unAmpValue (AmpValue x) = bytesToText x
 
 
 -- AMP Constants
-_ASK = u "_ask"
-_ANSWER = u "_answer"
-_COMMAND = u "_command"
+_ASK = ampKey "_ask"
+_ANSWER = ampKey "_answer"
+_COMMAND = ampKey "_command"
 _ERROR = u "_error"
 _ERROR_CODE = u "_error_code"
 _ERROR_DESCRIPTION = u "_error_description"
@@ -53,37 +56,53 @@ _UNKNOWN_ERROR_CODE = u "UNKNOWN"
 _UNHANDLED_ERROR_CODE = u "UNHANDLED"
 
 
-instance Binary AmpByteString where
-    put (AmpByteString bytes) = do put (fromIntegral (length bytes) :: Word16)
-                                   mapM_ put bytes
+instance Binary AmpKey where
+    put (AmpKey bytes) = do put (fromIntegral (length bytes) :: Word16)
+                            mapM_ put bytes
 
     get = do numBytes <- get :: Get Word16
-             do payload <- replicateM (fromIntegral numBytes) getWord8
-                return (AmpByteString payload)
+             payload <- replicateM (fromIntegral numBytes) getWord8
+             return (AmpKey payload)
+
+
+instance Binary AmpValue where
+    put (AmpValue bytes) = do put (fromIntegral (length bytes) :: Word16)
+                              mapM_ put bytes
+
+    get = do numBytes <- get :: Get Word16
+             payload <- replicateM (fromIntegral numBytes) getWord8
+             return (AmpValue payload)
 
 
 instance Binary AmpBox where
-    put (AmpBox box) = do mapM_ (put . AmpByteString) (mapToFlat box)
-                          put (0 :: Word16)
-    get = do ampStrings <- doUntil null (get >>= (return . _unAmpByteString))
-             return ((AmpBox . flatToMap) (init ampStrings))
+    put (AmpBox box) = mapM_ putAmpKeyPair (Map.toList box)
+      where
+        putAmpKeyPair (key, value) = do put key
+                                        put value
+
+    get = do key <- get :: Get AmpKey
+             value <- get :: Get AmpValue
+             return (AmpBox (Map.fromList [(key, value)]))
 
 
 instance Show AmpBox where
-    show box =
-        concat ["AmpBox(", (showMap (mapAll bytesToText (_unAmpBox box))), ")"]
+    show box = concat ["AmpBox(", (showMap . unboxMap) box, ")"]
 
 
 _addToBox key value box = AmpBox (Map.insert key value (_unAmpBox box))
 makeBoxCommand command False box = _addToBox _COMMAND command box
 makeBoxCommand command True box =
-    _addToBox _ASK (u "unique!") (makeBoxCommand command False box)
+    _addToBox _ASK (ampValue "unique!") (makeBoxCommand command False box)
 
 
 -- Because it's a pain to play with AmpBoxes in the interpreter, these helpers
 -- convert from [(String, String)] -> AmpBox and back.
-box x = (AmpBox . Map.fromList) (map (double textToBytes) x)
-unbox = mapItems (double bytesToText) . _unAmpBox
+
+boxMap = AmpBox . (transformMap ampKey ampValue)
+unboxMap = (transformMap unAmpKey unAmpValue) . _unAmpBox
+
+box = boxMap . Map.fromList
+unbox = Map.toList . unboxMap
 
 
 connectTCP :: HostName -> String -> IO Handle
@@ -131,7 +150,7 @@ callAMP handle box = do
 
 ampFunction :: Handle -> String -> AmpBox -> IO AmpBox
 ampFunction handle command arguments =
-    let box = makeBoxCommand (u command) True arguments in
+    let box = makeBoxCommand (ampValue command) True arguments in
     do reply <- callAMP handle box
        (return . AmpBox . (Map.delete _ANSWER) . _unAmpBox) reply
 
@@ -159,5 +178,3 @@ instance Argument Bytes where
 instance Argument String where
     toByteString = textToBytes
     fromByteString = bytesToText
-
-

@@ -1,4 +1,4 @@
-module Util (double, doUntil, mapToFlat, flatToMap, showMap, mapAll, mapItems) where
+module Util (double, doUntil, mapToFlat, flatToMap, showMap, mapItems, transformMap) where
 
 import Data.List
 import qualified Data.Map as Map
@@ -16,14 +16,12 @@ mapToFlat = toFlatList . Map.toList
 flatToMap :: (Ord a) => [a] -> (Map.Map a a)
 flatToMap = Map.fromList . fromFlatList
 
-transformMap :: (Ord a, Ord c) => ([(a, b)] -> [(c, d)]) -> Map.Map a b -> Map.Map c d
-transformMap f = Map.fromList . f . Map.toList
+transformMap :: (Ord a, Ord c) => (a -> c) -> (b -> d) -> Map.Map a b -> Map.Map c d
+transformMap f g m = Map.fromList [(f a, g b) | (a, b) <- Map.toList m]
+
 
 mapItems :: (Ord a) => ((a, b) -> x) -> Map.Map a b -> [x]
 mapItems f = (map f) . Map.toList
-
-mapAll :: (Ord x, Ord y) => (x -> y) -> Map.Map x x -> Map.Map y y
-mapAll = transformMap . map . double
 
 
 showMap datamap =
