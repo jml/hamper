@@ -91,7 +91,7 @@ includes::
 
   ASK => <unique_tag>
 
-where <unique_tag> is unique to that connection.
+where <unique_tag> is a byte-string unique to that connection.
 
 
   ANSWER
