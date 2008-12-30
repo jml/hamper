@@ -5,12 +5,8 @@ module Amp
      Bytes,
      ampFunction,
      box,
-     callAMP,
      connectTCP,
      disconnect,
-     getAMPMessage,
-     makeBoxCommand,
-     sendAMPMessage,
      textToBytes,
      unbox) where
 
@@ -24,15 +20,24 @@ import System.IO
 import Util
 
 
+type Bytes = [Word8]
+
+type AmpKey = Bytes
+type AmpValue = Bytes
+
+newtype AmpBox = AmpBox (Map.Map AmpKey AmpValue)
+_unAmpBox (AmpBox box) = box
+
+
 -- Convert between text and UTF8-encoded bytes.
 textToBytes = UTF8.encode
 u = textToBytes
 bytesToText = UTF8.decode
 
-type Bytes = [Word8]
 
-type AmpKey = Bytes
-type AmpValue = Bytes
+-- The basic unit of AMP is a length-prefix byte string.
+data AmpByteString = AmpByteString Bytes
+_unAmpByteString (AmpByteString string) = string
 
 
 -- AMP Constants
@@ -46,10 +51,6 @@ _UNKNOWN_ERROR_CODE = u "UNKNOWN"
 _UNHANDLED_ERROR_CODE = u "UNHANDLED"
 
 
--- The basic unit of AMP is a length-prefix byte string.
-data AmpByteString = AmpByteString Bytes
-_unAmpByteString (AmpByteString string) = string
-
 instance Binary AmpByteString where
     put (AmpByteString bytes) = do put (fromIntegral (length bytes) :: Word16)
                                    mapM_ put bytes
@@ -59,16 +60,11 @@ instance Binary AmpByteString where
                 return (AmpByteString payload)
 
 
-newtype AmpBox = AmpBox (Map.Map AmpKey AmpValue)
-_unAmpBox (AmpBox box) = box
-
-
 instance Binary AmpBox where
     put (AmpBox box) = do mapM_ (put . AmpByteString) (mapToFlat box)
                           put (0 :: Word16)
     get = do ampStrings <- doUntil null (get >>= (return . _unAmpByteString))
              return ((AmpBox . flatToMap) (init ampStrings))
-
 
 
 instance Show AmpBox where
@@ -142,6 +138,7 @@ disconnect :: Handle -> IO ()
 disconnect = hClose
 
 
+-- AMP allows for a multitude of arguments.
 class Argument a where
     toByteString :: a -> Bytes
     fromByteString :: Bytes -> a
@@ -152,12 +149,11 @@ instance Argument Integer where
     fromByteString bytes = ((read . bytesToText) bytes) :: Integer
 
 
--- Type Synonym
 instance Argument Bytes where
     toByteString = id
     fromByteString = id
 
 
-buildAmpBox command needsReply arguments =
-    makeBoxCommand command needsReply (AmpBox (Map.map toByteString arguments))
-
+instance Argument String where
+    toByteString = textToBytes
+    fromByteString = bytesToText
