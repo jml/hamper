@@ -1,4 +1,4 @@
-
+import Control.Concurrent
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Data.ByteString.Lazy as B
 
@@ -24,3 +24,11 @@ newtype Bar = MkBar String
 data X = X { name :: String }
 
 
+
+communicate = do
+  m <- newEmptyMVar
+  forkIO $ do
+    v <- takeMVar m
+    putStrLn ("received " ++ show v)
+  putStrLn "sending"
+  putMVar m "wake up!"
