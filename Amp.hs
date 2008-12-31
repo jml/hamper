@@ -12,6 +12,8 @@ module Amp
     , unbox
     ) where
 
+import Control.Concurrent
+import Control.Concurrent.STM
 import Control.Monad
 import Data.Binary
 import qualified Data.Map as Map
@@ -95,7 +97,7 @@ instance Show AmpBox where
     show box = concat ["AmpBox(", (showMap . unboxMap) box, ")"]
 
 
-_addToBox key value box = AmpBox (Map.insert key value (_unAmpBox box))
+_addToBox key value box = (AmpBox . Map.insert key value) (_unAmpBox box)
 makeBoxCommand command False box = _addToBox _COMMAND command box
 makeBoxCommand command True box =
     _addToBox _ASK (ampValue "unique!") (makeBoxCommand command False box)
@@ -109,6 +111,31 @@ unboxMap = (transformMap unAmpKey unAmpValue) . _unAmpBox
 
 box = boxMap . Map.fromList
 unbox = Map.toList . unboxMap
+
+
+-- An AmpSession represents a session between two AMP peers. It exists only
+-- for the lifetime of the connection.
+--
+-- An AmpSession tracks the answers we've received from the peer. It also
+-- knows how to create tags to identify new question/answers. (Eventually, it
+-- will also have a registry of responders to commands).
+
+newtype Tag = Tag Integer
+
+data AmpSession = AmpSession {
+      replies :: (MVar (Map.Map AmpValue (MVar AmpBox))),
+      lastTag :: MVar Tag
+    }
+
+
+newAmpSession :: IO AmpSession
+newAmpSession = liftM2 AmpSession (newMVar Map.empty) (newMVar (Tag 0))
+
+
+getNextTag :: AmpSession -> IO Tag
+getNextTag ampSession =
+  modifyMVar (lastTag ampSession) incrementTag
+  where incrementTag (Tag n) = return (Tag (n + 1), Tag n)
 
 
 connectTCP :: HostName -> String -> IO Handle
@@ -185,3 +212,7 @@ instance Argument String where
     toAmpValue = ampValue
     fromAmpValue = unAmpValue
 
+
+instance Argument Tag where
+    toAmpValue (Tag tag) = toAmpValue tag
+    fromAmpValue value = Tag ((read . unAmpValue) value :: Integer)
