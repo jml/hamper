@@ -38,10 +38,16 @@ u = textToBytes
 bytesToText = UTF8.decode
 
 
+ampKey :: String -> AmpKey
 ampKey = (AmpKey . textToBytes)
+
+unAmpKey :: AmpKey -> String
 unAmpKey (AmpKey x) =  bytesToText x
 
+ampValue :: String -> AmpValue
 ampValue = (AmpValue . textToBytes)
+
+unAmpValue :: AmpValue -> String
 unAmpValue (AmpValue x) = bytesToText x
 
 
@@ -161,20 +167,21 @@ disconnect = hClose
 
 -- AMP allows for a multitude of arguments.
 class Argument a where
-    toByteString :: a -> Bytes
-    fromByteString :: Bytes -> a
+    toAmpValue :: a -> AmpValue
+    fromAmpValue :: AmpValue -> a
 
 
 instance Argument Integer where
-    toByteString = (textToBytes . show)
-    fromByteString bytes = ((read . bytesToText) bytes) :: Integer
+    toAmpValue = (ampValue . show)
+    fromAmpValue value = (read . unAmpValue) value :: Integer
 
 
 instance Argument Bytes where
-    toByteString = id
-    fromByteString = id
+    toAmpValue = AmpValue
+    fromAmpValue (AmpValue bytes) = bytes
 
 
 instance Argument String where
-    toByteString = textToBytes
-    fromByteString = bytesToText
+    toAmpValue = ampValue
+    fromAmpValue = unAmpValue
+
