@@ -28,7 +28,7 @@ type Bytes = [Word8]
 
 newtype AmpKey = AmpKey Bytes deriving (Ord, Eq)
 
-newtype AmpValue = AmpValue Bytes
+newtype AmpValue = AmpValue Bytes deriving (Ord, Eq)
 
 newtype AmpBox = AmpBox (Map.Map AmpKey AmpValue)
 _unAmpBox (AmpBox box) = box
@@ -120,22 +120,53 @@ unbox = Map.toList . unboxMap
 -- knows how to create tags to identify new question/answers. (Eventually, it
 -- will also have a registry of responders to commands).
 
-newtype Tag = Tag Integer
+newtype Tag = Tag Integer deriving (Ord, Eq, Show)
+_untag (Tag tag) = tag
+
 
 data AmpSession = AmpSession {
-      replies :: (MVar (Map.Map AmpValue (MVar AmpBox))),
-      lastTag :: MVar Tag
+      replies :: (TVar (Map.Map Tag (TVar AmpBox))),
+      lastTag :: TVar Tag
     }
 
 
-newAmpSession :: IO AmpSession
-newAmpSession = liftM2 AmpSession (newMVar Map.empty) (newMVar (Tag 0))
+_tagToValue :: Tag -> AmpValue
+_tagToValue = toAmpValue . _untag
+
+_valueToTag :: AmpValue -> Tag
+_valueToTag = Tag . fromAmpValue
 
 
-getNextTag :: AmpSession -> IO Tag
+newAmpSession :: STM AmpSession
+newAmpSession = liftM2 AmpSession (newTVar Map.empty) (newTVar (Tag 0))
+
+
+getNextTag :: AmpSession -> STM Tag
 getNextTag ampSession =
-  modifyMVar (lastTag ampSession) incrementTag
-  where incrementTag (Tag n) = return (Tag (n + 1), Tag n)
+    do tag <- readTVar (lastTag ampSession)
+       tagsToAnswers <- readTVar (replies ampSession)
+       result <- newTVar (AmpBox Map.empty)
+       writeTVar (replies ampSession) (Map.insert tag result tagsToAnswers)
+       writeTVar (lastTag ampSession) (incrementTag tag)
+       return tag
+    where
+      incrementTag (Tag tag) = Tag (tag + 1)
+
+
+gotAnswer :: AmpSession -> AmpBox -> STM AmpSession
+gotAnswer ampSession (AmpBox box) =
+    case Map.lookup _ANSWER box of
+      Nothing -> return ampSession
+      Just tagValue ->
+          insertTag (_valueToTag tagValue) (AmpBox box) ampSession
+    where
+      insertTag tag box ampSession =
+          do replyMap <- readTVar (replies ampSession)
+             case Map.lookup tag replyMap of
+               Nothing -> return ampSession
+               Just tvar -> do
+                 writeTVar tvar box
+                 return ampSession
 
 
 connectTCP :: HostName -> String -> IO Handle
@@ -169,10 +200,17 @@ sendAMPMessage handle box = do
   B.hPut handle (encode box)
   hFlush handle
 
+
 getAMPMessage :: Handle -> IO AmpBox
 getAMPMessage handle = do
   contents <- B.hGetContents handle
   return $ decode contents
+
+
+readAMPSession :: AmpSession -> Handle -> IO ()
+readAMPSession ampSession handle =
+    forever (do box <- getAMPMessage handle
+                return (gotAnswer ampSession box))
 
 
 callAMP :: Handle -> AmpBox -> IO AmpBox
