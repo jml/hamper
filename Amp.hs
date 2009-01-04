@@ -130,13 +130,6 @@ data AmpSession = AmpSession {
     }
 
 
-_tagToValue :: Tag -> AmpValue
-_tagToValue = toAmpValue . _untag
-
-_valueToTag :: AmpValue -> Tag
-_valueToTag = Tag . fromAmpValue
-
-
 newAmpSession :: STM AmpSession
 newAmpSession = liftM2 AmpSession (newTVar Map.empty) (newTVar (Tag 0))
 
@@ -158,7 +151,7 @@ gotAnswer ampSession (AmpBox box) =
     case Map.lookup _ANSWER box of
       Nothing -> return ampSession
       Just tagValue ->
-          insertTag (_valueToTag tagValue) (AmpBox box) ampSession
+          insertTag (fromAmpValue tagValue) (AmpBox box) ampSession
     where
       insertTag tag box ampSession =
           do replyMap <- readTVar (replies ampSession)
